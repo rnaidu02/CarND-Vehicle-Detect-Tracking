@@ -18,10 +18,13 @@ The goals / steps of this project are the following:
 [image41]: ./output/all_size_with_classfier1.png
 [image42]: ./output/all_size_with_classfier2.png
 [image43]: ./output/all_size_with_classfier3.png
-[image5]: ./examples/bboxes_and_heat.png
+[image51]: ./output/vehicle_boxes_with_heatmap1.png
+[image52]: ./output/vehicle_boxes_with_heatmap2.png
+[image53]: ./output/vehicle_boxes_with_heatmap3.png
+[image54]: ./output/vehicle_boxes_with_heatmap4.png
 [image6]: ./examples/labels_map.png
-[image7]: ./examples/output_bboxes.png
-[video1]: ./project_video.mp4
+[image7]: ./output/last_frame_with_boxes.jpg
+[video1]: ./output.mp4
 
 Here is the link to my [project code](https://github.com/rnaidu02/CarND-Vehicle-Detect-Tracking/blob/master/Vehicle-Detection-Tracking.ipynb)
 
@@ -29,7 +32,7 @@ Here is the link to my [project code](https://github.com/rnaidu02/CarND-Vehicle-
 
 #### 1. Explain how (and identify where in your code) you extracted HOG features from the training images.
 
-The code for this step is contained in the first code cell of the IPython notebook within a function called get_hog_features() line # 16 - 34. (https://github.com/rnaidu02/CarND-Vehicle-Detect-Tracking/blob/master/Vehicle-Detection-Tracking.ipynb) .  
+The code for this step is contained in the first code cell of the IPython notebook within a function called `get_hog_features()` line # 16 - 34. (https://github.com/rnaidu02/CarND-Vehicle-Detect-Tracking/blob/master/Vehicle-Detection-Tracking.ipynb) .  
 
 I started by reading in all the `vehicle` and `non-vehicle` images from the KITTI image data set that is provided in the lesson.  Here is an example of one of each of the `vehicle` and `non-vehicle` classes:
 
@@ -49,7 +52,7 @@ I experimented with 8, 9 orientation for the HOG parameters and didn't see much 
 
 #### 3. Describe how (and identify where in your code) you trained a classifier using your selected HOG features (and color features if you used them).
 
-I have trained the linear SVM using LinearSVC() with default parameters. The code for the training is available in cell #4 of the Python notebook.
+I have trained the linear SVM using `LinearSVC() with default parameters. The code for the training is available in cell #4 of the Python notebook.
 
 First, I have extracted features for both car and non-car images with the following types
 * color histogram features: extracted histogram for each color channel separately and combined them into a list
@@ -84,21 +87,27 @@ Ultimately I searched on two scales using R 1-channel HOG features plus spatiall
 ### Video Implementation
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (somewhat wobbly or unstable bounding boxes are ok as long as you are identifying the vehicles most of the time with minimal false positives.)
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./output.mp4)
+
+The cars are identified most of the time within the video. At couple of frames it showed false positives (May be in less than 10 frames out of 1260).
 
 
 #### 2. Describe how (and identify where in your code) you implemented some kind of filter for false positives and some method for combining overlapping bounding boxes.
 
-I recorded the positions of positive detections in each frame of the video.  From the positive detections I created a heatmap and then thresholded that map to identify vehicle positions.  I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected.  
+Mo code for filtering out the false positives out of the search windows from frame to frame within the video is done in two stages:
+
+* Heat Map and Labels: With each window sizes of search windows find the resulting windows from the classifier and create a heatmap of the windows overlap for each of the pixels within the image. Using a threshold value filter out the windows with less overlap/heatmap as false positives and ignore them. I then used `scipy.ndimage.measurements.label()` to identify individual blobs in the heatmap.  I then assumed each blob corresponded to a vehicle.  I constructed bounding boxes to cover the area of each blob detected. The code for this logic is in cell #13 of the python notebook.  
 
 Here's an example result showing the heatmap from a series of frames of video, the result of `scipy.ndimage.measurements.label()` and the bounding boxes then overlaid on the last frame of video:
 
-### Here are six frames and their corresponding heatmaps:
+### Here are four frames and their corresponding heatmaps:
 
-![alt text][image5]
+![alt text][image51]
+![alt text][image52]
+![alt text][image53]
+![alt text][image54]
 
-### Here is the output of `scipy.ndimage.measurements.label()` on the integrated heatmap from all six frames:
-![alt text][image6]
+* History of last 6 frames with the video: After applying the heatmap and labels to the bounding boxes to filter out the false positive detection, I found many instances of bounding boxes appear with the video where there is no vehicles present. To overcome this issue, I have kept a track of last 6 frames heat map within the buffer to see how the next frame is similar to the last 6 frames that are stored. Each Stored frame comparison to the current frame is given a weightage based on how recent the stored frame is. The frame will get a weightage factor of 6 as opposed to last 6th frame will get a weightage of 0.5. The similarity between the frames is determined by the similarity of the size of the boxes (both width and height within a tolerance of 20 pixels), distance between the center of the boxes (to determine which box correspond to which box in the next frame). The code for this logic is available in function `check_against_prev_boxes()` within code cell #13 inside python notebook.
 
 ### Here the resulting bounding boxes are drawn onto the last frame in the series:
 ![alt text][image7]
@@ -107,8 +116,19 @@ Here's an example result showing the heatmap from a series of frames of video, t
 
 ---
 
-###Discussion
+### Discussion
 
-####1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
+#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+Initially I was focusing on using `find_windows()` also for the bounding box identification along with `search_windows()` function. However I had doubts on the identified bounding boxes and there are many false positives in it.
+
+I have tried to combine the advanced lane detection and vehicle detection, and this resulted in many false positive bounding box identification as opposed to very little false positives when only the `project_video.mp4` is provided as input.
+
+Here are the things that can be done to improve the robustness of the pipeline.
+* Accuracy improvements: To improve the classifier accuracy, data augmentation can be done to get more training data. Experimenting with `linearSVC()` params can also improve the accuracy. On top of this, having more experimentation on the search window sizes, HOG channel selection, color space selection and find optimum params based on the least false positives. Also the logic to eliminate the false positives using the heat maps of past 6 frames of the current frame logic also can improved quite a bit. I used very basic logic to eliminate the boxes that are not relevant.
+
+* Performance of algorithm: Currently the pipeline takes long time to process the 50 sec video. May places the algorithms can be improved to reduce the time. Current pipeline is not implemented focusing on this.
+
+* Structural improvements for the code: Current python notebook code doesn't store the svm params in persistent form. Having the params stored in a pickle file will result in the cleanliness of the code and usability of the dependent functions.
+
+I would like to use the time in between now and the next term start to play with the Accuracy improvements so that I get better understanding of the CV features that can be used in autonomous driving use cases.
